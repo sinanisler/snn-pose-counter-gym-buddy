@@ -543,10 +543,10 @@
         let lastDetectionId = 0;
 
         // Time-based detection (more reliable than frame counting at 30 FPS backend)
-        const POSE_ENTRY_TIME = 100; // Must be in pose for 100ms to start entering
-        const POSE_HOLD_TIME = 150; // Hold for 150ms total to confirm pose
-        const POSE_EXIT_TIME = 150; // Must be out for 150ms to exit (prevents jitter)
-        const POSE_TRANSITION_TIME = 300; // Cooldown between poses
+        const POSE_ENTRY_TIME = 60; // Must be in pose for 100ms to start entering
+        const POSE_HOLD_TIME = 60; // Hold for 150ms total to confirm pose
+        const POSE_EXIT_TIME = 60; // Must be out for 150ms to exit (prevents jitter)
+        const POSE_TRANSITION_TIME = 333; // Cooldown between poses
 
         const video = document.getElementById('webcam');
         const canvas = document.getElementById('canvas');
