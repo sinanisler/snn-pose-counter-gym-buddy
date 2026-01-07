@@ -537,8 +537,8 @@
         let lastPoseDetectionTime = 0;
         let poseHoldTime = 0;
         let isInPose = false;
-        const POSE_HOLD_THRESHOLD = 500; // Must hold pose for 500ms
-        const POSE_COOLDOWN = 300; // 300ms cooldown between poses
+        const POSE_HOLD_THRESHOLD = 200; // Must hold pose for 500ms
+        const POSE_COOLDOWN = 200; // 300ms cooldown between poses
 
         const video = document.getElementById('webcam');
         const canvas = document.getElementById('canvas');
@@ -1028,16 +1028,29 @@
             capturedPoses = [...config.poses];
 
             document.getElementById('exerciseName').value = config.name;
-            document.getElementById('loadExerciseSelect').value = id;
             document.getElementById('trackingParts').value = config.trackingParts;
 
-            openCalibrationModal();
+            // Only open modal if it's not already open
+            const modal = document.getElementById('calibrationModal');
+            if (!modal.classList.contains('active')) {
+                document.getElementById('calibrationModal').classList.add('active');
+            }
+
+            // Update the dropdown to reflect the loaded exercise
+            document.getElementById('loadExerciseSelect').value = id;
             updateCapturedPosesList();
         }
 
         document.getElementById('loadExerciseSelect').addEventListener('change', (e) => {
             if (e.target.value) {
                 editExercise(e.target.value);
+            } else {
+                // User selected "Create new..." - reset the form
+                capturedPoses = [];
+                currentEditingExercise = null;
+                document.getElementById('exerciseName').value = '';
+                document.getElementById('trackingParts').value = 'legs';
+                updateCapturedPosesList();
             }
         });
 
