@@ -1,0 +1,122 @@
+╔══════════════════════════════════════════════════════════════╗
+║         AI EXERCISE COUNTER - QUICK REFERENCE                ║
+║            Optimized for RTX 3060 Performance                ║
+╚══════════════════════════════════════════════════════════════╝
+
+📱 POSE STATUS INDICATORS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  -           No pose detected (waiting)
+  🔵          Entering pose (confirming...)
+  🟡 25%      Holding pose - 25% complete
+  🟡 50%      Holding pose - 50% complete
+  🟡 75%      Holding pose - 75% complete
+  🟡 100%     Holding pose - almost there!
+  ✅          Pose confirmed! Rep counted!
+
+
+⚙️ CONFIGURATION (Lines 545-549 in index_advanced.html)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  POSE_ENTRY_FRAMES = 3      → Must match pose for 3 frames
+  POSE_HOLD_TIME = 150       → Hold pose for 150ms
+  POSE_EXIT_FRAMES = 5       → Need 5 frames out to exit
+  POSE_TRANSITION_TIME = 100 → 100ms cooldown between poses
+
+
+⚡ PERFORMANCE SETTINGS (Lines 519-520)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  IMAGE_QUALITY = 0.7         → JPEG quality (0.5-0.95)
+  PROCESSING_INTERVAL = 33    → ~30 FPS (16=60fps, 33=30fps)
+
+
+📊 EXPECTED PERFORMANCE (RTX 3060)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  FPS:           25-35 fps
+  Inference:     5-15 ms
+  GPU Usage:     20-40%
+  VRAM:          ~500 MB / 12 GB
+
+
+🔧 TUNING GUIDE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  Too Sensitive (false counts):
+    ↑ POSE_ENTRY_FRAMES to 4-5
+    ↑ POSE_HOLD_TIME to 200-250
+    ↑ POSE_EXIT_FRAMES to 7-10
+
+  Not Sensitive Enough (missing counts):
+    ↓ POSE_ENTRY_FRAMES to 2
+    ↓ POSE_HOLD_TIME to 100-120
+    ↓ POSE_EXIT_FRAMES to 3-4
+
+  Need More Speed:
+    ↓ PROCESSING_INTERVAL to 16 (60fps)
+    ↓ IMAGE_QUALITY to 0.6
+    (May reduce accuracy)
+
+  Better Accuracy:
+    ↑ IMAGE_QUALITY to 0.8-0.9
+    ↑ PROCESSING_INTERVAL to 50
+    (May reduce speed)
+
+
+🎯 BEST PRACTICES
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  ✓ Good lighting
+  ✓ Stand 6-8 feet from camera
+  ✓ Full body visible
+  ✓ Distinct poses (>30° difference)
+  ✓ Wait for ✅ before transitioning
+  ✓ Smooth, controlled movements
+
+
+🐛 TROUBLESHOOTING
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  Backend won't start:
+    → Check CUDA installation
+    → Verify yolov8n-pose.onnx exists
+    → Check port 5000 is available
+
+  Counting doesn't work:
+    → Watch for 🔵 → 🟡 → ✅ progression
+    → Ensure pose hold time is reached (100%)
+    → Check angle difference between poses (>15°)
+
+  Laggy performance:
+    → Visit http://localhost:5000/stats
+    → Check GPU utilization
+    → Verify CUDAExecutionProvider in logs
+    → Try IMAGE_QUALITY = 0.6
+
+  False positives:
+    → Increase POSE_ENTRY_FRAMES
+    → Increase POSE_HOLD_TIME
+    → Increase angle threshold in code
+
+
+📁 KEY FILES
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  index_advanced.html    → Frontend UI & detection logic
+  backend.py             → GPU-accelerated YOLO inference
+  yolov8n-pose.onnx      → Pose estimation model
+  PERFORMANCE_IMPROVEMENTS.md → Detailed documentation
+
+
+🔗 ENDPOINTS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  http://localhost:5000/health       → Backend health check
+  http://localhost:5000/stats        → GPU statistics
+  http://localhost:5000/process_frame → Frame inference
+
+
+═══════════════════════════════════════════════════════════════
+         Made with ❤️ for RTX 3060 | CUDA Powered
+═══════════════════════════════════════════════════════════════

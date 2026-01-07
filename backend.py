@@ -26,10 +26,22 @@ def initialize_model():
     print(f"Available providers: {ort.get_available_providers()}")
 
     try:
+        # CUDA provider options for RTX 3060 optimization
+        cuda_provider_options = {
+            'device_id': 0,
+            'arena_extend_strategy': 'kSameAsRequested',
+            'cudnn_conv_algo_search': 'HEURISTIC',  # Faster than EXHAUSTIVE
+            'do_copy_in_default_stream': True,
+            'cudnn_conv_use_max_workspace': '1'
+        }
+
         # Try CUDA first (GPU acceleration)
         session = ort.InferenceSession(
             'yolov8n-pose.onnx',
-            providers=['CUDAExecutionProvider', 'CPUExecutionProvider']
+            providers=[
+                ('CUDAExecutionProvider', cuda_provider_options),
+                'CPUExecutionProvider'
+            ]
         )
 
         # Check which provider is actually being used
@@ -52,68 +64,64 @@ def initialize_model():
         return False
 
 def preprocess_frame(frame):
-    """Preprocess frame for YOLO model input"""
-    # Resize to model input size
-    img = cv2.resize(frame, model_input_size)
+    """Preprocess frame for YOLO model input - optimized for speed"""
+    # Resize with INTER_LINEAR (faster than INTER_CUBIC)
+    img = cv2.resize(frame, model_input_size, interpolation=cv2.INTER_LINEAR)
 
     # Convert BGR to RGB
     img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
 
-    # Normalize to [0, 1] and convert to float32
-    img = img.astype(np.float32) / 255.0
+    # Normalize to [0, 1] - single operation for speed
+    img = np.ascontiguousarray(img.astype(np.float32)) / 255.0
 
-    # Transpose from HWC to CHW format
-    img = np.transpose(img, (2, 0, 1))
-
-    # Add batch dimension [1, 3, 640, 640]
-    img = np.expand_dims(img, axis=0)
+    # Transpose from HWC to CHW format and add batch dimension
+    img = np.expand_dims(np.transpose(img, (2, 0, 1)), axis=0)
 
     return img
 
 def postprocess_output(output, original_width, original_height, conf_threshold=0.5):
-    """Process YOLO output to extract keypoints"""
+    """Process YOLO output to extract keypoints - vectorized for speed"""
     # Output shape: [1, 56, 8400]
     # Format: [x, y, w, h, confidence, 17 keypoints * 3 (x, y, conf)]
 
     output = output[0]  # Remove batch dimension
-    num_detections = output.shape[1]
 
-    best_detection = None
-    best_score = 0
+    # Vectorized confidence filtering
+    confidences = output[4, :]
+    best_idx = np.argmax(confidences)
+    best_score = confidences[best_idx]
 
-    for i in range(num_detections):
-        # Get confidence score (index 4)
-        score = output[4, i]
+    if best_score < conf_threshold:
+        return None
 
-        if score > conf_threshold and score > best_score:
-            best_score = score
+    # Extract best detection data (vectorized)
+    detection_data = output[:, best_idx]
 
-            # Get bounding box
-            x = float(output[0, i])
-            y = float(output[1, i])
-            w = float(output[2, i])
-            h = float(output[3, i])
+    # Get bounding box
+    x, y, w, h = float(detection_data[0]), float(detection_data[1]), \
+                 float(detection_data[2]), float(detection_data[3])
 
-            # Get keypoints (17 keypoints * 3 values = 51 values)
-            keypoints = []
-            for k in range(17):
-                kp_x = float(output[5 + k * 3, i]) * original_width / model_input_size[0]
-                kp_y = float(output[5 + k * 3 + 1, i]) * original_height / model_input_size[1]
-                kp_conf = float(output[5 + k * 3 + 2, i])
+    # Extract all keypoints at once (vectorized)
+    kp_data = detection_data[5:56].reshape(17, 3)  # 17 keypoints x 3 values
 
-                keypoints.append({
-                    'x': kp_x,
-                    'y': kp_y,
-                    'confidence': kp_conf
-                })
+    # Scale keypoints to original image size
+    scale_x = original_width / model_input_size[0]
+    scale_y = original_height / model_input_size[1]
 
-            best_detection = {
-                'box': {'x': x, 'y': y, 'w': w, 'h': h},
-                'score': float(score),
-                'keypoints': keypoints
-            }
+    keypoints = [
+        {
+            'x': float(kp_data[k, 0] * scale_x),
+            'y': float(kp_data[k, 1] * scale_y),
+            'confidence': float(kp_data[k, 2])
+        }
+        for k in range(17)
+    ]
 
-    return best_detection
+    return {
+        'box': {'x': x, 'y': y, 'w': w, 'h': h},
+        'score': float(best_score),
+        'keypoints': keypoints
+    }
 
 @app.route('/health', methods=['GET'])
 def health_check():

@@ -516,8 +516,8 @@
 
     <script>
         const BACKEND_URL = 'http://localhost:5000';
-        const IMAGE_QUALITY = 0.6;
-        const PROCESSING_INTERVAL = 100;
+        const IMAGE_QUALITY = 0.7;
+        const PROCESSING_INTERVAL = 33; // ~30 FPS for high-end GPU
         const COUNTDOWN_SECONDS = 5;
 
         let webcamStream;
@@ -534,11 +534,19 @@
         let exerciseConfigs = {};
         let capturedPoses = [];
         let currentEditingExercise = null;
-        let lastPoseDetectionTime = 0;
-        let poseHoldTime = 0;
-        let isInPose = false;
-        const POSE_HOLD_THRESHOLD = 200; // Must hold pose for 500ms
-        const POSE_COOLDOWN = 200; // 300ms cooldown between poses
+
+        // Enhanced pose detection state machine
+        let poseDetectionState = 'WAITING'; // WAITING, ENTERING, HOLDING, TRANSITIONING
+        let poseEntryTime = 0;
+        let poseConfirmedTime = 0;
+        let consecutiveFramesInPose = 0;
+        let consecutiveFramesOutOfPose = 0;
+
+        // Tuned for RTX 3060 - much more responsive!
+        const POSE_ENTRY_FRAMES = 3; // Need 3 consecutive frames to enter
+        const POSE_HOLD_TIME = 150; // Hold for 150ms (was 200ms)
+        const POSE_EXIT_FRAMES = 5; // Need 5 frames out to exit (prevents jitter)
+        const POSE_TRANSITION_TIME = 100; // Cooldown between poses (was 200ms)
 
         const video = document.getElementById('webcam');
         const canvas = document.getElementById('canvas');
@@ -696,48 +704,77 @@
             const currentAngle = calculateAngle(kp1, kp2, kp3);
             const targetPose = config.poses[currentPoseIndex];
             const angleDiff = Math.abs(currentAngle - targetPose.angle);
-            const threshold = 15;
+            const angleThreshold = 15; // Degree threshold for pose matching
             const now = Date.now();
 
-            // Check if we're currently in the target pose
-            if (angleDiff < threshold) {
-                if (!isInPose) {
-                    // Just entered the pose
-                    isInPose = true;
-                    poseHoldTime = now;
-                    currentStateDiv.textContent = targetPose.name + ' ⏳';
-                } else {
-                    // Holding the pose - check if held long enough
-                    const holdDuration = now - poseHoldTime;
+            // Check if current frame matches target pose
+            const isInTargetPose = angleDiff < angleThreshold;
 
-                    if (holdDuration >= POSE_HOLD_THRESHOLD) {
-                        // Check cooldown to prevent double counting
-                        if (now - lastPoseDetectionTime > POSE_COOLDOWN) {
-                            currentStateDiv.textContent = targetPose.name + ' ✓';
-                            lastPoseDetectionTime = now;
+            // State machine for robust pose detection
+            switch (poseDetectionState) {
+                case 'WAITING':
+                    if (isInTargetPose) {
+                        consecutiveFramesInPose++;
+                        consecutiveFramesOutOfPose = 0;
+
+                        if (consecutiveFramesInPose >= POSE_ENTRY_FRAMES) {
+                            // Entered the pose reliably
+                            poseDetectionState = 'ENTERING';
+                            poseEntryTime = now;
+                            currentStateDiv.textContent = targetPose.name + ' 🔵';
+                        }
+                    } else {
+                        consecutiveFramesInPose = 0;
+                        consecutiveFramesOutOfPose++;
+                        currentStateDiv.textContent = '-';
+                    }
+                    break;
+
+                case 'ENTERING':
+                    if (isInTargetPose) {
+                        consecutiveFramesOutOfPose = 0;
+                        const holdDuration = now - poseEntryTime;
+
+                        // Visual feedback - show progress
+                        const progress = Math.min(100, (holdDuration / POSE_HOLD_TIME) * 100);
+                        currentStateDiv.textContent = targetPose.name + ` 🟡 ${Math.floor(progress)}%`;
+
+                        if (holdDuration >= POSE_HOLD_TIME) {
+                            // Successfully held the pose!
+                            poseDetectionState = 'HOLDING';
+                            poseConfirmedTime = now;
+                            currentStateDiv.textContent = targetPose.name + ' ✅';
 
                             // Move to next pose
                             if (currentPoseIndex === config.poses.length - 1) {
-                                // Completed full rep
+                                // Completed full rep!
                                 repCount++;
                                 repCountDiv.textContent = repCount;
                                 currentPoseIndex = 0;
                             } else {
                                 currentPoseIndex++;
                             }
-
-                            // Reset for next pose
-                            isInPose = false;
+                        }
+                    } else {
+                        consecutiveFramesOutOfPose++;
+                        if (consecutiveFramesOutOfPose >= POSE_EXIT_FRAMES) {
+                            // Lost the pose before completing hold
+                            poseDetectionState = 'WAITING';
+                            consecutiveFramesInPose = 0;
+                            consecutiveFramesOutOfPose = 0;
+                            currentStateDiv.textContent = '-';
                         }
                     }
-                }
-            } else {
-                // Not in target pose anymore
-                if (isInPose) {
-                    // Left the pose before holding long enough
-                    isInPose = false;
-                    currentStateDiv.textContent = '-';
-                }
+                    break;
+
+                case 'HOLDING':
+                    // Transition period - wait before detecting next pose
+                    if (now - poseConfirmedTime >= POSE_TRANSITION_TIME) {
+                        poseDetectionState = 'WAITING';
+                        consecutiveFramesInPose = 0;
+                        consecutiveFramesOutOfPose = 0;
+                    }
+                    break;
             }
         }
 
@@ -1018,8 +1055,13 @@
             currentPoseIndex = 0;
             repCountDiv.textContent = '0';
             currentStateDiv.textContent = '-';
-            isInPose = false;
-            lastPoseDetectionTime = 0;
+
+            // Reset state machine
+            poseDetectionState = 'WAITING';
+            consecutiveFramesInPose = 0;
+            consecutiveFramesOutOfPose = 0;
+            poseEntryTime = 0;
+            poseConfirmedTime = 0;
         }
 
         function editExercise(id) {
@@ -1067,8 +1109,13 @@
             currentPoseIndex = 0;
             repCountDiv.textContent = '0';
             currentStateDiv.textContent = '-';
-            isInPose = false;
-            lastPoseDetectionTime = 0;
+
+            // Reset state machine
+            poseDetectionState = 'WAITING';
+            consecutiveFramesInPose = 0;
+            consecutiveFramesOutOfPose = 0;
+            poseEntryTime = 0;
+            poseConfirmedTime = 0;
         });
 
         calibrateBtn.addEventListener('click', openCalibrationModal);
@@ -1079,8 +1126,13 @@
             currentPoseIndex = 0;
             repCountDiv.textContent = '0';
             currentStateDiv.textContent = '-';
-            isInPose = false;
-            lastPoseDetectionTime = 0;
+
+            // Reset state machine
+            poseDetectionState = 'WAITING';
+            consecutiveFramesInPose = 0;
+            consecutiveFramesOutOfPose = 0;
+            poseEntryTime = 0;
+            poseConfirmedTime = 0;
         });
 
         init();
