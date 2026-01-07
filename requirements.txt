@@ -1,0 +1,19 @@
+# GPU-Accelerated YOLO Pose Estimation Requirements
+# Compatible with Python 3.13
+
+# Core dependencies
+flask>=3.0.0
+flask-cors>=4.0.0
+numpy>=1.26.0
+opencv-python>=4.9.0.80
+
+# ONNX Runtime with CUDA support
+# Install with: pip install onnxruntime-gpu
+onnxruntime-gpu>=1.19.0
+
+# Optional: GPU monitoring (requires NVIDIA drivers)
+pynvml>=11.5.0
+
+# Note: This requires CUDA 12.x and cuDNN 9.x to be installed
+# Or install CUDA/cuDNN automatically with: pip install onnxruntime-gpu[cuda,cudnn]
+# See: https://onnxruntime.ai/docs/execution-providers/CUDA-ExecutionProvider.html

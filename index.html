@@ -1,0 +1,710 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Exercise Counter</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: white;
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            max-width: 1200px;
+            width: 100%;
+        }
+
+        h1 {
+            text-align: center;
+            color: #667eea;
+            margin-bottom: 10px;
+            font-size: 2.5em;
+        }
+
+        .subtitle {
+            text-align: center;
+            color: #666;
+            margin-bottom: 30px;
+            font-size: 1.1em;
+        }
+
+        .video-container {
+            position: relative;
+            width: 100%;
+            max-width: 800px;
+            margin: 0 auto 30px;
+            border-radius: 15px;
+            overflow: hidden;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+        }
+
+        #webcam {
+            width: 100%;
+            display: none;
+        }
+
+        #canvas {
+            width: 100%;
+            display: block;
+        }
+
+        .controls {
+            display: flex;
+            gap: 15px;
+            justify-content: center;
+            flex-wrap: wrap;
+            margin-bottom: 30px;
+        }
+
+        button {
+            padding: 15px 30px;
+            font-size: 16px;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        #startBtn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        #startBtn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        #startBtn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .exercise-select {
+            padding: 15px 20px;
+            font-size: 16px;
+            border: 2px solid #667eea;
+            border-radius: 10px;
+            background: white;
+            color: #667eea;
+            cursor: pointer;
+            font-weight: 600;
+        }
+
+        .counters {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+
+        .counter-box {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            padding: 25px;
+            border-radius: 15px;
+            text-align: center;
+            color: white;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+        }
+
+        .counter-label {
+            font-size: 1.1em;
+            margin-bottom: 10px;
+            opacity: 0.9;
+        }
+
+        .counter-value {
+            font-size: 3em;
+            font-weight: bold;
+        }
+
+        .status {
+            text-align: center;
+            padding: 15px;
+            background: #f0f0f0;
+            border-radius: 10px;
+            margin-bottom: 20px;
+        }
+
+        .status.loading {
+            background: #fff3cd;
+            color: #856404;
+        }
+
+        .status.ready {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .status.error {
+            background: #f8d7da;
+            color: #721c24;
+        }
+
+        .info-box {
+            background: #e7f3ff;
+            border-left: 4px solid #2196F3;
+            padding: 15px;
+            margin-top: 20px;
+            border-radius: 5px;
+        }
+
+        .info-box h3 {
+            color: #2196F3;
+            margin-bottom: 10px;
+        }
+
+        .info-box ul {
+            margin-left: 20px;
+        }
+
+        .info-box li {
+            margin: 5px 0;
+        }
+
+        #fps {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: rgba(0, 0, 0, 0.7);
+            color: white;
+            padding: 5px 10px;
+            border-radius: 5px;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🏋️ AI Exercise Counter</h1>
+        <p class="subtitle">Real-time pose detection powered by YOLOv8n-pose</p>
+
+        <div id="status" class="status loading">
+            Loading AI model... Please wait
+        </div>
+
+        <div class="video-container">
+            <video id="webcam" autoplay playsinline></video>
+            <canvas id="canvas"></canvas>
+            <div id="fps">FPS: 0</div>
+        </div>
+
+        <div class="controls">
+            <select id="exerciseSelect" class="exercise-select">
+                <option value="squat">Squats</option>
+                <option value="bicep_curl">Bicep Curls</option>
+                <option value="pushup">Push-ups</option>
+            </select>
+            <button id="startBtn" disabled>Start Webcam</button>
+            <button id="resetBtn" style="background: #f5576c; color: white;">Reset Counter</button>
+        </div>
+
+        <div class="counters">
+            <div class="counter-box">
+                <div class="counter-label">Reps Completed</div>
+                <div class="counter-value" id="repCount">0</div>
+            </div>
+            <div class="counter-box" style="background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);">
+                <div class="counter-label">Current State</div>
+                <div class="counter-value" id="currentState" style="font-size: 1.5em;">-</div>
+            </div>
+        </div>
+
+        <div class="info-box">
+            <h3>📋 Instructions</h3>
+            <ul>
+                <li><strong>Squats:</strong> Stand with feet shoulder-width apart. The system counts when you go down and come back up.</li>
+                <li><strong>Bicep Curls:</strong> Hold dumbbells at your sides. The system counts when your hand goes from down to up.</li>
+                <li><strong>Push-ups:</strong> Start in plank position. The system counts when you go down and push back up.</li>
+                <li><strong>Tip:</strong> Make sure your whole body is visible in the camera for best results!</li>
+            </ul>
+        </div>
+
+        <div class="info-box" style="background: #fff3e0; border-left-color: #ff9800;">
+            <h3>⚙️ Setup Required</h3>
+            <ul>
+                <li>Download <strong>yolov8n-pose.onnx</strong> model (instructions in README)</li>
+                <li>Place the model file in the same folder as this HTML file</li>
+                <li>Use Chrome or Edge browser for best performance (WebGL support)</li>
+                <li>Allow camera access when prompted</li>
+            </ul>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/onnxruntime-web@1.19.2/dist/ort.min.js"></script>
+    <script>
+        // Global variables
+        let session;
+        let webcamStream;
+        let isProcessing = false;
+        let exerciseType = 'squat';
+        let repCount = 0;
+        let currentPhase = 'none'; // 'up', 'down', 'none'
+        let frameCount = 0;
+        let fpsInterval;
+        let lastTime = Date.now();
+
+        const video = document.getElementById('webcam');
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        const startBtn = document.getElementById('startBtn');
+        const resetBtn = document.getElementById('resetBtn');
+        const statusDiv = document.getElementById('status');
+        const exerciseSelect = document.getElementById('exerciseSelect');
+        const repCountDiv = document.getElementById('repCount');
+        const currentStateDiv = document.getElementById('currentState');
+        const fpsDiv = document.getElementById('fps');
+
+        // Keypoint indices for YOLO pose model (COCO format - 17 keypoints)
+        const KEYPOINTS = {
+            NOSE: 0,
+            LEFT_EYE: 1,
+            RIGHT_EYE: 2,
+            LEFT_EAR: 3,
+            RIGHT_EAR: 4,
+            LEFT_SHOULDER: 5,
+            RIGHT_SHOULDER: 6,
+            LEFT_ELBOW: 7,
+            RIGHT_ELBOW: 8,
+            LEFT_WRIST: 9,
+            RIGHT_WRIST: 10,
+            LEFT_HIP: 11,
+            RIGHT_HIP: 12,
+            LEFT_KNEE: 13,
+            RIGHT_KNEE: 14,
+            LEFT_ANKLE: 15,
+            RIGHT_ANKLE: 16
+        };
+
+        // Skeleton connections for drawing
+        const SKELETON = [
+            [KEYPOINTS.LEFT_SHOULDER, KEYPOINTS.RIGHT_SHOULDER],
+            [KEYPOINTS.LEFT_SHOULDER, KEYPOINTS.LEFT_ELBOW],
+            [KEYPOINTS.LEFT_ELBOW, KEYPOINTS.LEFT_WRIST],
+            [KEYPOINTS.RIGHT_SHOULDER, KEYPOINTS.RIGHT_ELBOW],
+            [KEYPOINTS.RIGHT_ELBOW, KEYPOINTS.RIGHT_WRIST],
+            [KEYPOINTS.LEFT_SHOULDER, KEYPOINTS.LEFT_HIP],
+            [KEYPOINTS.RIGHT_SHOULDER, KEYPOINTS.RIGHT_HIP],
+            [KEYPOINTS.LEFT_HIP, KEYPOINTS.RIGHT_HIP],
+            [KEYPOINTS.LEFT_HIP, KEYPOINTS.LEFT_KNEE],
+            [KEYPOINTS.LEFT_KNEE, KEYPOINTS.LEFT_ANKLE],
+            [KEYPOINTS.RIGHT_HIP, KEYPOINTS.RIGHT_KNEE],
+            [KEYPOINTS.RIGHT_KNEE, KEYPOINTS.RIGHT_ANKLE]
+        ];
+
+        // Initialize
+        async function init() {
+            try {
+                updateStatus('Loading AI model...', 'loading');
+
+                // Configure ONNX Runtime
+                ort.env.wasm.wasmPaths = 'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.19.2/dist/';
+                ort.env.wasm.numThreads = 1; // Avoid threading issues
+
+                // Check if model file exists first
+                const modelPath = 'yolov8n-pose.onnx';
+                console.log('Attempting to load model from:', modelPath);
+
+                try {
+                    const response = await fetch(modelPath, { method: 'HEAD' });
+                    if (!response.ok) {
+                        throw new Error(`Model file not found at ${modelPath}. Status: ${response.status}`);
+                    }
+                    console.log('Model file found, loading...');
+                } catch (fetchError) {
+                    console.error('Model file check failed:', fetchError);
+                    updateStatus('Error: yolov8n-pose.onnx not found! Check console for details.', 'error');
+                    return;
+                }
+
+                // Try WASM first (more stable for most users)
+                try {
+                    session = await ort.InferenceSession.create(modelPath, {
+                        executionProviders: ['wasm'],
+                        graphOptimizationLevel: 'all'
+                    });
+                    console.log('Model loaded successfully with WASM (CPU)');
+                } catch (wasmError) {
+                    console.log('WASM failed, trying WebGL...', wasmError);
+                    session = await ort.InferenceSession.create(modelPath, {
+                        executionProviders: ['webgl']
+                    });
+                    console.log('Model loaded with WebGL (GPU acceleration)');
+                }
+
+                updateStatus('Model loaded! Click "Start Webcam" to begin', 'ready');
+                startBtn.disabled = false;
+            } catch (error) {
+                console.error('Error loading model:', error);
+                let errorMsg = 'Error: Could not load model. ';
+                if (error.message) {
+                    errorMsg += error.message;
+                } else {
+                    errorMsg += 'Make sure yolov8n-pose.onnx is in the same folder!';
+                }
+                updateStatus(errorMsg, 'error');
+            }
+        }
+
+        function updateStatus(message, type) {
+            statusDiv.textContent = message;
+            statusDiv.className = `status ${type}`;
+        }
+
+        // Start webcam
+        async function startWebcam() {
+            try {
+                webcamStream = await navigator.mediaDevices.getUserMedia({
+                    video: {
+                        width: { ideal: 640 },
+                        height: { ideal: 480 }
+                    }
+                });
+                video.srcObject = webcamStream;
+                
+                video.onloadedmetadata = () => {
+                    canvas.width = video.videoWidth;
+                    canvas.height = video.videoHeight;
+                    updateStatus('Running! Detecting pose...', 'ready');
+                    startBtn.textContent = 'Stop Webcam';
+                    processFrame();
+                    startFPSCounter();
+                };
+            } catch (error) {
+                console.error('Error accessing webcam:', error);
+                updateStatus('Error: Could not access webcam. Please allow camera permissions.', 'error');
+            }
+        }
+
+        function stopWebcam() {
+            if (webcamStream) {
+                webcamStream.getTracks().forEach(track => track.stop());
+                webcamStream = null;
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                updateStatus('Webcam stopped', 'ready');
+                startBtn.textContent = 'Start Webcam';
+                clearInterval(fpsInterval);
+            }
+        }
+
+        // FPS counter
+        function startFPSCounter() {
+            let frames = 0;
+            fpsInterval = setInterval(() => {
+                fpsDiv.textContent = `FPS: ${frames}`;
+                frames = 0;
+            }, 1000);
+            
+            // Count frames
+            const countFrame = () => {
+                if (webcamStream) {
+                    frames++;
+                    requestAnimationFrame(countFrame);
+                }
+            };
+            countFrame();
+        }
+
+        // Preprocess image for YOLO
+        function preprocessImage(video, modelWidth = 640, modelHeight = 640) {
+            const tempCanvas = document.createElement('canvas');
+            tempCanvas.width = modelWidth;
+            tempCanvas.height = modelHeight;
+            const tempCtx = tempCanvas.getContext('2d');
+            
+            // Draw and resize
+            tempCtx.drawImage(video, 0, 0, modelWidth, modelHeight);
+            const imageData = tempCtx.getImageData(0, 0, modelWidth, modelHeight);
+            
+            // Convert to tensor format [1, 3, 640, 640]
+            const float32Data = new Float32Array(3 * modelWidth * modelHeight);
+            
+            for (let i = 0; i < imageData.data.length; i += 4) {
+                const pixelIndex = i / 4;
+                float32Data[pixelIndex] = imageData.data[i] / 255.0; // R
+                float32Data[modelWidth * modelHeight + pixelIndex] = imageData.data[i + 1] / 255.0; // G
+                float32Data[2 * modelWidth * modelHeight + pixelIndex] = imageData.data[i + 2] / 255.0; // B
+            }
+            
+            return {
+                data: float32Data,
+                dims: [1, 3, modelHeight, modelWidth]
+            };
+        }
+
+        // Process output from YOLO
+        function processOutput(output, originalWidth, originalHeight) {
+            const outputData = output.data;
+            const dims = output.dims; // [1, 56, 8400]
+            
+            // Parse detections
+            const numDetections = dims[2]; // 8400
+            let bestDetection = null;
+            let bestScore = 0;
+            
+            for (let i = 0; i < numDetections; i++) {
+                const score = outputData[4 * numDetections + i]; // Confidence score
+                
+                if (score > 0.5 && score > bestScore) {
+                    bestScore = score;
+                    
+                    // Get bounding box
+                    const x = outputData[i];
+                    const y = outputData[numDetections + i];
+                    const w = outputData[2 * numDetections + i];
+                    const h = outputData[3 * numDetections + i];
+                    
+                    // Get keypoints (17 keypoints * 3 values each = 51 values)
+                    const keypoints = [];
+                    for (let k = 0; k < 17; k++) {
+                        const kpX = outputData[(5 + k * 3) * numDetections + i];
+                        const kpY = outputData[(5 + k * 3 + 1) * numDetections + i];
+                        const kpConf = outputData[(5 + k * 3 + 2) * numDetections + i];
+                        
+                        keypoints.push({
+                            x: kpX * originalWidth / 640,
+                            y: kpY * originalHeight / 640,
+                            confidence: kpConf
+                        });
+                    }
+                    
+                    bestDetection = {
+                        box: { x, y, w, h },
+                        score: score,
+                        keypoints: keypoints
+                    };
+                }
+            }
+            
+            return bestDetection;
+        }
+
+        // Calculate angle between three points
+        function calculateAngle(p1, p2, p3) {
+            const radians = Math.atan2(p3.y - p2.y, p3.x - p2.x) - 
+                           Math.atan2(p1.y - p2.y, p1.x - p2.x);
+            let angle = Math.abs(radians * 180.0 / Math.PI);
+            if (angle > 180.0) {
+                angle = 360.0 - angle;
+            }
+            return angle;
+        }
+
+        // Exercise detection logic
+        function detectExercise(keypoints) {
+            if (!keypoints || keypoints.length !== 17) return;
+            
+            const leftShoulder = keypoints[KEYPOINTS.LEFT_SHOULDER];
+            const rightShoulder = keypoints[KEYPOINTS.RIGHT_SHOULDER];
+            const leftHip = keypoints[KEYPOINTS.LEFT_HIP];
+            const rightHip = keypoints[KEYPOINTS.RIGHT_HIP];
+            const leftKnee = keypoints[KEYPOINTS.LEFT_KNEE];
+            const rightKnee = keypoints[KEYPOINTS.RIGHT_KNEE];
+            const leftElbow = keypoints[KEYPOINTS.LEFT_ELBOW];
+            const rightElbow = keypoints[KEYPOINTS.RIGHT_ELBOW];
+            const leftWrist = keypoints[KEYPOINTS.LEFT_WRIST];
+            const rightWrist = keypoints[KEYPOINTS.RIGHT_WRIST];
+            
+            // Check confidence
+            const minConfidence = 0.5;
+            
+            if (exerciseType === 'squat') {
+                if (leftHip.confidence < minConfidence || leftKnee.confidence < minConfidence) return;
+                
+                // Calculate knee angle
+                const kneeAngle = calculateAngle(leftHip, leftKnee, keypoints[KEYPOINTS.LEFT_ANKLE]);
+                
+                // Detect squat phases
+                if (kneeAngle < 100) { // Down position
+                    if (currentPhase === 'up') {
+                        currentPhase = 'down';
+                        currentStateDiv.textContent = 'DOWN';
+                    } else if (currentPhase === 'none') {
+                        currentPhase = 'down';
+                        currentStateDiv.textContent = 'DOWN';
+                    }
+                } else if (kneeAngle > 160) { // Up position
+                    if (currentPhase === 'down') {
+                        repCount++;
+                        repCountDiv.textContent = repCount;
+                        currentPhase = 'up';
+                        currentStateDiv.textContent = 'UP ✓';
+                    } else if (currentPhase === 'none') {
+                        currentPhase = 'up';
+                        currentStateDiv.textContent = 'UP';
+                    }
+                }
+            } else if (exerciseType === 'bicep_curl') {
+                if (leftShoulder.confidence < minConfidence || leftElbow.confidence < minConfidence) return;
+                
+                // Calculate elbow angle
+                const elbowAngle = calculateAngle(leftShoulder, leftElbow, leftWrist);
+                
+                // Detect curl phases
+                if (elbowAngle < 50) { // Curled position
+                    if (currentPhase === 'down') {
+                        repCount++;
+                        repCountDiv.textContent = repCount;
+                        currentPhase = 'up';
+                        currentStateDiv.textContent = 'CURLED ✓';
+                    } else if (currentPhase === 'none') {
+                        currentPhase = 'up';
+                        currentStateDiv.textContent = 'CURLED';
+                    }
+                } else if (elbowAngle > 160) { // Extended position
+                    if (currentPhase === 'up') {
+                        currentPhase = 'down';
+                        currentStateDiv.textContent = 'DOWN';
+                    } else if (currentPhase === 'none') {
+                        currentPhase = 'down';
+                        currentStateDiv.textContent = 'DOWN';
+                    }
+                }
+            } else if (exerciseType === 'pushup') {
+                if (leftShoulder.confidence < minConfidence || leftElbow.confidence < minConfidence) return;
+                
+                // Calculate elbow angle
+                const elbowAngle = calculateAngle(leftShoulder, leftElbow, leftWrist);
+                
+                // Detect push-up phases
+                if (elbowAngle < 90) { // Down position
+                    if (currentPhase === 'up') {
+                        currentPhase = 'down';
+                        currentStateDiv.textContent = 'DOWN';
+                    } else if (currentPhase === 'none') {
+                        currentPhase = 'down';
+                        currentStateDiv.textContent = 'DOWN';
+                    }
+                } else if (elbowAngle > 160) { // Up position
+                    if (currentPhase === 'down') {
+                        repCount++;
+                        repCountDiv.textContent = repCount;
+                        currentPhase = 'up';
+                        currentStateDiv.textContent = 'UP ✓';
+                    } else if (currentPhase === 'none') {
+                        currentPhase = 'up';
+                        currentStateDiv.textContent = 'UP';
+                    }
+                }
+            }
+        }
+
+        // Draw keypoints and skeleton
+        function drawPose(detection) {
+            if (!detection) return;
+            
+            const keypoints = detection.keypoints;
+            
+            // Draw skeleton
+            ctx.strokeStyle = '#00ff00';
+            ctx.lineWidth = 3;
+            
+            for (const [start, end] of SKELETON) {
+                const kp1 = keypoints[start];
+                const kp2 = keypoints[end];
+                
+                if (kp1.confidence > 0.5 && kp2.confidence > 0.5) {
+                    ctx.beginPath();
+                    ctx.moveTo(kp1.x, kp1.y);
+                    ctx.lineTo(kp2.x, kp2.y);
+                    ctx.stroke();
+                }
+            }
+            
+            // Draw keypoints
+            for (const kp of keypoints) {
+                if (kp.confidence > 0.5) {
+                    ctx.fillStyle = '#ff0000';
+                    ctx.beginPath();
+                    ctx.arc(kp.x, kp.y, 5, 0, 2 * Math.PI);
+                    ctx.fill();
+                }
+            }
+        }
+
+        // Main processing loop
+        async function processFrame() {
+            if (!webcamStream || isProcessing) {
+                requestAnimationFrame(processFrame);
+                return;
+            }
+            
+            isProcessing = true;
+            
+            try {
+                // Preprocess
+                const inputTensor = preprocessImage(video);
+                const feeds = { images: new ort.Tensor('float32', inputTensor.data, inputTensor.dims) };
+                
+                // Run inference
+                const results = await session.run(feeds);
+                const output = results.output0;
+                
+                // Process results
+                const detection = processOutput(output, canvas.width, canvas.height);
+                
+                // Draw
+                ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+                
+                if (detection) {
+                    drawPose(detection);
+                    detectExercise(detection.keypoints);
+                }
+                
+            } catch (error) {
+                console.error('Error processing frame:', error);
+            }
+            
+            isProcessing = false;
+            requestAnimationFrame(processFrame);
+        }
+
+        // Event listeners
+        startBtn.addEventListener('click', () => {
+            if (webcamStream) {
+                stopWebcam();
+            } else {
+                startWebcam();
+            }
+        });
+
+        resetBtn.addEventListener('click', () => {
+            repCount = 0;
+            currentPhase = 'none';
+            repCountDiv.textContent = '0';
+            currentStateDiv.textContent = '-';
+        });
+
+        exerciseSelect.addEventListener('change', (e) => {
+            exerciseType = e.target.value;
+            repCount = 0;
+            currentPhase = 'none';
+            repCountDiv.textContent = '0';
+            currentStateDiv.textContent = '-';
+        });
+
+        // Initialize on load
+        init();
+    </script>
+</body>
+</html>

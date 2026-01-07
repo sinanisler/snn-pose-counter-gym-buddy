@@ -1,0 +1,1036 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Exercise Counter - Multi-Pose Calibration</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            background: white;
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        h1 {
+            text-align: center;
+            color: #667eea;
+            margin-bottom: 10px;
+            font-size: 2.5em;
+        }
+
+        .subtitle {
+            text-align: center;
+            color: #666;
+            margin-bottom: 20px;
+            font-size: 1.1em;
+        }
+
+        .main-layout {
+            display: grid;
+            grid-template-columns: 1fr 350px;
+            gap: 20px;
+            margin-top: 20px;
+        }
+
+        .video-section {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .video-container {
+            position: relative;
+            width: 100%;
+            border-radius: 15px;
+            overflow: hidden;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+            background: #000;
+        }
+
+        #webcam {
+            width: 100%;
+            display: none;
+        }
+
+        #canvas {
+            width: 100%;
+            display: block;
+        }
+
+        .countdown-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.8);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            flex-direction: column;
+            z-index: 10;
+        }
+
+        .countdown-overlay.active {
+            display: flex;
+        }
+
+        .countdown-message {
+            color: white;
+            font-size: 24px;
+            margin-bottom: 20px;
+            text-align: center;
+            padding: 0 20px;
+        }
+
+        .countdown-number {
+            font-size: 120px;
+            font-weight: bold;
+            color: white;
+            text-shadow: 0 0 30px rgba(255, 255, 255, 0.8);
+            animation: countdownPulse 1s ease-in-out;
+        }
+
+        @keyframes countdownPulse {
+            0% { transform: scale(0.5); opacity: 0; }
+            50% { transform: scale(1.2); }
+            100% { transform: scale(1); opacity: 1; }
+        }
+
+        .status {
+            text-align: center;
+            padding: 12px;
+            background: #f0f0f0;
+            border-radius: 10px;
+            margin: 15px 0;
+            font-weight: 500;
+        }
+
+        .status.loading { background: #fff3cd; color: #856404; }
+        .status.ready { background: #d4edda; color: #155724; }
+        .status.error { background: #f8d7da; color: #721c24; }
+        .status.calibrating { background: #d1ecf1; color: #0c5460; }
+
+        .controls {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin-top: 15px;
+        }
+
+        button {
+            padding: 12px 24px;
+            font-size: 14px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        button:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+        }
+
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .btn-success {
+            background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+            color: white;
+        }
+
+        .btn-danger {
+            background: linear-gradient(135deg, #ee0979 0%, #ff6a00 100%);
+            color: white;
+        }
+
+        .btn-secondary {
+            background: #6c757d;
+            color: white;
+        }
+
+        .sidebar {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        .panel {
+            background: #f8f9fa;
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        }
+
+        .panel h3 {
+            color: #667eea;
+            margin-bottom: 15px;
+            font-size: 1.2em;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .counter-display {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+        }
+
+        .counter-box {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            padding: 15px;
+            border-radius: 10px;
+            text-align: center;
+            color: white;
+        }
+
+        .counter-label {
+            font-size: 0.9em;
+            opacity: 0.9;
+            margin-bottom: 5px;
+        }
+
+        .counter-value {
+            font-size: 2em;
+            font-weight: bold;
+        }
+
+        .exercise-select {
+            width: 100%;
+            padding: 12px;
+            font-size: 14px;
+            border: 2px solid #667eea;
+            border-radius: 8px;
+            background: white;
+            color: #667eea;
+            cursor: pointer;
+            font-weight: 600;
+            margin-bottom: 10px;
+        }
+
+        .exercises-list {
+            max-height: 300px;
+            overflow-y: auto;
+        }
+
+        .exercise-item {
+            background: white;
+            padding: 12px;
+            border-radius: 8px;
+            margin-bottom: 8px;
+            transition: all 0.2s;
+            border: 2px solid transparent;
+        }
+
+        .exercise-item:hover {
+            border-color: #667eea;
+            transform: translateX(4px);
+        }
+
+        .exercise-item.selected {
+            border-color: #667eea;
+            background: #e7f0ff;
+        }
+
+        .exercise-name {
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 4px;
+        }
+
+        .exercise-meta {
+            font-size: 0.85em;
+            color: #666;
+        }
+
+        .exercise-actions {
+            margin-top: 8px;
+            display: flex;
+            gap: 5px;
+        }
+
+        .btn-small {
+            padding: 6px 12px;
+            font-size: 11px;
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.7);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal.active {
+            display: flex;
+        }
+
+        .modal-content {
+            background: white;
+            border-radius: 15px;
+            padding: 30px;
+            max-width: 600px;
+            width: 90%;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .modal-header h2 {
+            color: #667eea;
+        }
+
+        .close-btn {
+            background: none;
+            border: none;
+            font-size: 28px;
+            cursor: pointer;
+            color: #999;
+            padding: 0;
+            width: 30px;
+            height: 30px;
+        }
+
+        .form-group {
+            margin-bottom: 15px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 600;
+            color: #333;
+        }
+
+        .form-group input, .form-group select {
+            width: 100%;
+            padding: 10px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            font-size: 14px;
+        }
+
+        .poses-list {
+            margin-top: 15px;
+        }
+
+        .pose-item {
+            background: #f0f0f0;
+            padding: 10px;
+            border-radius: 6px;
+            margin-bottom: 8px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .pose-preview {
+            width: 60px;
+            height: 60px;
+            border-radius: 4px;
+            object-fit: cover;
+            margin-right: 10px;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 40px 20px;
+            color: #999;
+        }
+
+        .info-box {
+            background: #e7f3ff;
+            border: 1px solid #b3d9ff;
+            border-radius: 8px;
+            padding: 12px;
+            margin: 10px 0;
+            font-size: 0.9em;
+            color: #004085;
+        }
+
+        @media (max-width: 1024px) {
+            .main-layout {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🏋️ AI Exercise Counter</h1>
+        <p class="subtitle">Multi-Pose Calibration System</p>
+
+        <div id="status" class="status loading">
+            Connecting to GPU backend...
+        </div>
+
+        <div class="main-layout">
+            <div class="video-section">
+                <div class="video-container">
+                    <video id="webcam" autoplay playsinline></video>
+                    <canvas id="canvas"></canvas>
+                    <div id="countdownOverlay" class="countdown-overlay">
+                        <div class="countdown-message" id="countdownMessage">Get ready to pose...</div>
+                        <div class="countdown-number" id="countdownNumber">5</div>
+                    </div>
+                </div>
+
+                <div class="controls">
+                    <button id="startBtn" class="btn-primary" disabled>Start Webcam</button>
+                    <button id="resetBtn" class="btn-secondary">Reset Counter</button>
+                    <button id="calibrateBtn" class="btn-success">⚙️ Create/Edit Exercise</button>
+                </div>
+            </div>
+
+            <div class="sidebar">
+                <div class="panel">
+                    <h3>📋 Current Exercise</h3>
+                    <select id="exerciseSelect" class="exercise-select">
+                        <option value="">Select an exercise...</option>
+                    </select>
+
+                    <div class="counter-display">
+                        <div class="counter-box">
+                            <div class="counter-label">Reps</div>
+                            <div class="counter-value" id="repCount">0</div>
+                        </div>
+                        <div class="counter-box" style="background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);">
+                            <div class="counter-label">Pose</div>
+                            <div class="counter-value" id="currentState" style="font-size: 1em;">-</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="panel">
+                    <h3>💪 My Exercises</h3>
+                    <div id="exercisesList" class="exercises-list">
+                        <div class="empty-state">
+                            <p>No custom exercises yet.<br>Click "Create/Edit Exercise" to start!</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="panel">
+                    <h3>⚡ Performance</h3>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 0.9em;">
+                        <div><strong>FPS:</strong> <span id="statFPS">0</span></div>
+                        <div><strong>Inference:</strong> <span id="statInference">0ms</span></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="calibrationModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>⚙️ Create/Edit Exercise</h2>
+                <button class="close-btn" onclick="closeCalibrationModal()">&times;</button>
+            </div>
+
+            <div class="info-box">
+                ℹ️ Create a custom exercise by capturing multiple poses. The system will count reps as you move through these poses in sequence.
+            </div>
+
+            <div class="form-group">
+                <label>Exercise Name</label>
+                <input type="text" id="exerciseName" placeholder="e.g., Squats, Jumping Jacks, Lunges">
+            </div>
+
+            <div class="form-group">
+                <label>Load Existing Exercise (Optional)</label>
+                <select id="loadExerciseSelect" class="exercise-select">
+                    <option value="">Create new...</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label>Body Parts to Track</label>
+                <select id="trackingParts" class="exercise-select">
+                    <option value="legs">Legs (Hip-Knee-Ankle)</option>
+                    <option value="arms">Arms (Shoulder-Elbow-Wrist)</option>
+                    <option value="torso">Torso (Shoulder-Hip-Knee)</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label>Captured Poses (<span id="poseCount">0</span>)</label>
+                <div id="capturedPosesList" class="poses-list">
+                    <div class="empty-state" style="padding: 20px;">
+                        No poses captured yet
+                    </div>
+                </div>
+            </div>
+
+            <div style="display: flex; gap: 10px; margin: 20px 0;">
+                <button class="btn-primary" style="flex: 1;" onclick="capturePose()">📸 Capture Pose (5s countdown)</button>
+            </div>
+
+            <div style="display: flex; gap: 10px;">
+                <button class="btn-success" style="flex: 1;" onclick="saveExercise()">💾 Save Exercise</button>
+                <button class="btn-danger" style="flex: 1;" onclick="deleteCurrentExercise()">🗑️ Delete</button>
+                <button class="btn-secondary" style="flex: 1;" onclick="closeCalibrationModal()">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const BACKEND_URL = 'http://localhost:5000';
+        const IMAGE_QUALITY = 0.6;
+        const PROCESSING_INTERVAL = 100;
+        const COUNTDOWN_SECONDS = 5;
+
+        let webcamStream;
+        let isProcessing = false;
+        let exerciseType = '';
+        let repCount = 0;
+        let currentPoseIndex = 0;
+        let backendConnected = false;
+        let lastDetection = null;
+        let processingInterval = null;
+        let fpsInterval = null;
+        let isCapturing = false;
+
+        let exerciseConfigs = {};
+        let capturedPoses = [];
+        let currentEditingExercise = null;
+
+        const video = document.getElementById('webcam');
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        const startBtn = document.getElementById('startBtn');
+        const resetBtn = document.getElementById('resetBtn');
+        const calibrateBtn = document.getElementById('calibrateBtn');
+        const statusDiv = document.getElementById('status');
+        const exerciseSelect = document.getElementById('exerciseSelect');
+        const repCountDiv = document.getElementById('repCount');
+        const currentStateDiv = document.getElementById('currentState');
+        const countdownOverlay = document.getElementById('countdownOverlay');
+        const countdownNumber = document.getElementById('countdownNumber');
+        const countdownMessage = document.getElementById('countdownMessage');
+
+        const KEYPOINTS = {
+            NOSE: 0, LEFT_EYE: 1, RIGHT_EYE: 2, LEFT_EAR: 3, RIGHT_EAR: 4,
+            LEFT_SHOULDER: 5, RIGHT_SHOULDER: 6, LEFT_ELBOW: 7, RIGHT_ELBOW: 8,
+            LEFT_WRIST: 9, RIGHT_WRIST: 10, LEFT_HIP: 11, RIGHT_HIP: 12,
+            LEFT_KNEE: 13, RIGHT_KNEE: 14, LEFT_ANKLE: 15, RIGHT_ANKLE: 16
+        };
+
+        const SKELETON = [
+            [5, 6], [5, 7], [7, 9], [6, 8], [8, 10],
+            [5, 11], [6, 12], [11, 12], [11, 13], [13, 15], [12, 14], [14, 16]
+        ];
+
+        function loadConfigs() {
+            const saved = localStorage.getItem('exerciseConfigs');
+            if (saved) {
+                exerciseConfigs = JSON.parse(saved);
+                updateExerciseSelects();
+            }
+        }
+
+        function saveConfigs() {
+            localStorage.setItem('exerciseConfigs', JSON.stringify(exerciseConfigs));
+            updateExerciseSelects();
+            loadExercisesList();
+        }
+
+        function updateExerciseSelects() {
+            exerciseSelect.innerHTML = '<option value="">Select an exercise...</option>';
+            const loadSelect = document.getElementById('loadExerciseSelect');
+            loadSelect.innerHTML = '<option value="">Create new...</option>';
+
+            for (const [key, config] of Object.entries(exerciseConfigs)) {
+                const opt1 = document.createElement('option');
+                opt1.value = key;
+                opt1.textContent = config.name;
+                exerciseSelect.appendChild(opt1);
+
+                const opt2 = document.createElement('option');
+                opt2.value = key;
+                opt2.textContent = config.name;
+                loadSelect.appendChild(opt2);
+            }
+        }
+
+        async function init() {
+            loadConfigs();
+            loadExercisesList();
+
+            try {
+                updateStatus('Connecting to GPU backend...', 'loading');
+                const response = await fetch(`${BACKEND_URL}/health`);
+                const data = await response.json();
+
+                if (data.status === 'ok' && data.model_loaded) {
+                    const provider = data.cuda_available ? 'CUDA GPU' : 'CPU';
+                    updateStatus(`✓ Connected to backend (${provider})`, 'ready');
+                    backendConnected = true;
+                    startBtn.disabled = false;
+                } else {
+                    updateStatus('Backend connected but model not loaded', 'error');
+                }
+            } catch (error) {
+                console.error('Error connecting to backend:', error);
+                updateStatus('Error: Cannot connect to backend. Make sure backend.py is running', 'error');
+            }
+        }
+
+        function updateStatus(message, type) {
+            statusDiv.textContent = message;
+            statusDiv.className = `status ${type}`;
+        }
+
+        async function startWebcam() {
+            try {
+                webcamStream = await navigator.mediaDevices.getUserMedia({
+                    video: { width: { ideal: 640 }, height: { ideal: 480 } },
+                    audio: false
+                });
+                video.srcObject = webcamStream;
+
+                video.onloadedmetadata = () => {
+                    canvas.width = video.videoWidth;
+                    canvas.height = video.videoHeight;
+                    updateStatus('🔥 Running! Select an exercise to start counting.', 'ready');
+                    startBtn.textContent = 'Stop Webcam';
+                    renderLoop();
+                    startProcessing();
+                    startFPSCounter();
+                };
+            } catch (error) {
+                console.error('Error accessing webcam:', error);
+                updateStatus('Error: Could not access webcam', 'error');
+            }
+        }
+
+        function stopWebcam() {
+            if (webcamStream) {
+                webcamStream.getTracks().forEach(track => track.stop());
+                webcamStream = null;
+                stopProcessing();
+                lastDetection = null;
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                updateStatus('Webcam stopped', 'ready');
+                startBtn.textContent = 'Start Webcam';
+                clearInterval(fpsInterval);
+            }
+        }
+
+        function calculateAngle(p1, p2, p3) {
+            const radians = Math.atan2(p3.y - p2.y, p3.x - p2.x) -
+                           Math.atan2(p1.y - p2.y, p1.x - p2.x);
+            let angle = Math.abs(radians * 180.0 / Math.PI);
+            if (angle > 180.0) angle = 360.0 - angle;
+            return angle;
+        }
+
+        function getKeypointsForTracking(parts) {
+            switch(parts) {
+                case 'legs': return { joint1: 11, joint2: 13, joint3: 15 };
+                case 'arms': return { joint1: 5, joint2: 7, joint3: 9 };
+                case 'torso': return { joint1: 5, joint2: 11, joint3: 13 };
+                default: return { joint1: 11, joint2: 13, joint3: 15 };
+            }
+        }
+
+        function detectExercise(keypoints) {
+            if (!keypoints || keypoints.length !== 17 || !exerciseType) return;
+
+            const config = exerciseConfigs[exerciseType];
+            if (!config || !config.poses || config.poses.length < 2) return;
+
+            const minConfidence = 0.5;
+            const joints = config.keypoints;
+            const kp1 = keypoints[joints.joint1];
+            const kp2 = keypoints[joints.joint2];
+            const kp3 = keypoints[joints.joint3];
+
+            if (kp1.confidence < minConfidence || kp2.confidence < minConfidence) return;
+
+            const currentAngle = calculateAngle(kp1, kp2, kp3);
+
+            const targetPose = config.poses[currentPoseIndex];
+            const angleDiff = Math.abs(currentAngle - targetPose.angle);
+            const threshold = 15;
+
+            if (angleDiff < threshold) {
+                currentStateDiv.textContent = targetPose.name;
+
+                if (currentPoseIndex === config.poses.length - 1) {
+                    repCount++;
+                    repCountDiv.textContent = repCount;
+                    currentPoseIndex = 0;
+                } else {
+                    currentPoseIndex++;
+                }
+            }
+        }
+
+        function drawPose(detection) {
+            if (!detection) return;
+
+            const keypoints = detection.keypoints;
+
+            ctx.strokeStyle = '#00ff00';
+            ctx.lineWidth = 3;
+
+            for (const [start, end] of SKELETON) {
+                const kp1 = keypoints[start];
+                const kp2 = keypoints[end];
+
+                if (kp1.confidence > 0.5 && kp2.confidence > 0.5) {
+                    ctx.beginPath();
+                    ctx.moveTo(kp1.x, kp1.y);
+                    ctx.lineTo(kp2.x, kp2.y);
+                    ctx.stroke();
+                }
+            }
+
+            for (const kp of keypoints) {
+                if (kp.confidence > 0.5) {
+                    ctx.fillStyle = '#ff0000';
+                    ctx.beginPath();
+                    ctx.arc(kp.x, kp.y, 5, 0, 2 * Math.PI);
+                    ctx.fill();
+                }
+            }
+        }
+
+        async function processFrame() {
+            if (!webcamStream || isProcessing) return;
+
+            isProcessing = true;
+
+            try {
+                const tempCanvas = document.createElement('canvas');
+                tempCanvas.width = video.videoWidth;
+                tempCanvas.height = video.videoHeight;
+                const tempCtx = tempCanvas.getContext('2d');
+                tempCtx.drawImage(video, 0, 0);
+                const frameData = tempCanvas.toDataURL('image/jpeg', IMAGE_QUALITY);
+
+                const response = await fetch(`${BACKEND_URL}/process_frame`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ frame: frameData })
+                });
+
+                const result = await response.json();
+
+                if (result.success && result.detection) {
+                    lastDetection = result.detection;
+
+                    if (result.timing) {
+                        document.getElementById('statInference').textContent =
+                            result.timing.inference_ms.toFixed(1) + 'ms';
+                    }
+                }
+            } catch (error) {
+                console.error('Error processing frame:', error);
+            }
+
+            isProcessing = false;
+        }
+
+        function startProcessing() {
+            if (processingInterval) clearInterval(processingInterval);
+            processingInterval = setInterval(processFrame, PROCESSING_INTERVAL);
+        }
+
+        function stopProcessing() {
+            if (processingInterval) {
+                clearInterval(processingInterval);
+                processingInterval = null;
+            }
+        }
+
+        function renderLoop() {
+            if (!webcamStream) return;
+
+            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+            if (lastDetection) {
+                drawPose(lastDetection);
+                if (!isCapturing) {
+                    detectExercise(lastDetection.keypoints);
+                }
+            }
+
+            requestAnimationFrame(renderLoop);
+        }
+
+        function startFPSCounter() {
+            let frames = 0;
+            fpsInterval = setInterval(() => {
+                document.getElementById('statFPS').textContent = frames;
+                frames = 0;
+            }, 1000);
+
+            const countFrame = () => {
+                if (webcamStream) {
+                    frames++;
+                    requestAnimationFrame(countFrame);
+                }
+            };
+            countFrame();
+        }
+
+        function openCalibrationModal() {
+            document.getElementById('calibrationModal').classList.add('active');
+            capturedPoses = [];
+            currentEditingExercise = null;
+            document.getElementById('exerciseName').value = '';
+            document.getElementById('loadExerciseSelect').value = '';
+            updateCapturedPosesList();
+        }
+
+        function closeCalibrationModal() {
+            document.getElementById('calibrationModal').classList.remove('active');
+            capturedPoses = [];
+            currentEditingExercise = null;
+        }
+
+        async function capturePose() {
+            if (!webcamStream) {
+                alert('Please start the webcam first!');
+                return;
+            }
+
+            isCapturing = true;
+            countdownOverlay.classList.add('active');
+
+            for (let i = COUNTDOWN_SECONDS; i > 0; i--) {
+                countdownNumber.textContent = i;
+                countdownMessage.textContent = `Get into position for pose ${capturedPoses.length + 1}...`;
+                countdownNumber.style.animation = 'none';
+                setTimeout(() => {
+                    countdownNumber.style.animation = 'countdownPulse 1s ease-in-out';
+                }, 10);
+                await new Promise(resolve => setTimeout(resolve, 1000));
+            }
+
+            if (lastDetection && lastDetection.keypoints) {
+                const trackingParts = document.getElementById('trackingParts').value;
+                const joints = getKeypointsForTracking(trackingParts);
+
+                const kp1 = lastDetection.keypoints[joints.joint1];
+                const kp2 = lastDetection.keypoints[joints.joint2];
+                const kp3 = lastDetection.keypoints[joints.joint3];
+
+                const angle = calculateAngle(kp1, kp2, kp3);
+
+                const snapshot = canvas.toDataURL('image/jpeg', 0.3);
+
+                capturedPoses.push({
+                    name: `Pose ${capturedPoses.length + 1}`,
+                    angle: angle,
+                    keypoints: lastDetection.keypoints,
+                    snapshot: snapshot,
+                    trackingParts: trackingParts
+                });
+
+                countdownMessage.textContent = '✓ Pose captured!';
+                countdownNumber.textContent = '✓';
+                await new Promise(resolve => setTimeout(resolve, 500));
+            } else {
+                alert('Could not detect pose. Please try again.');
+            }
+
+            countdownOverlay.classList.remove('active');
+            isCapturing = false;
+            updateCapturedPosesList();
+        }
+
+        function updateCapturedPosesList() {
+            const list = document.getElementById('capturedPosesList');
+            document.getElementById('poseCount').textContent = capturedPoses.length;
+
+            if (capturedPoses.length === 0) {
+                list.innerHTML = '<div class="empty-state" style="padding: 20px;">No poses captured yet</div>';
+                return;
+            }
+
+            list.innerHTML = capturedPoses.map((pose, index) => `
+                <div class="pose-item">
+                    <div style="display: flex; align-items: center; flex: 1;">
+                        <img src="${pose.snapshot}" class="pose-preview" alt="Pose ${index + 1}">
+                        <div>
+                            <strong>${pose.name}</strong><br>
+                            <small>Angle: ${pose.angle.toFixed(1)}°</small>
+                        </div>
+                    </div>
+                    <button class="btn-small btn-danger" onclick="removePose(${index})">Remove</button>
+                </div>
+            `).join('');
+        }
+
+        function removePose(index) {
+            capturedPoses.splice(index, 1);
+            capturedPoses.forEach((pose, i) => {
+                pose.name = `Pose ${i + 1}`;
+            });
+            updateCapturedPosesList();
+        }
+
+        function saveExercise() {
+            const name = document.getElementById('exerciseName').value.trim();
+
+            if (!name) {
+                alert('Please enter an exercise name!');
+                return;
+            }
+
+            if (capturedPoses.length < 2) {
+                alert('Please capture at least 2 poses!');
+                return;
+            }
+
+            const id = currentEditingExercise || name.toLowerCase().replace(/\s+/g, '_');
+            const trackingParts = document.getElementById('trackingParts').value;
+
+            exerciseConfigs[id] = {
+                name: name,
+                trackingParts: trackingParts,
+                keypoints: getKeypointsForTracking(trackingParts),
+                poses: capturedPoses
+            };
+
+            saveConfigs();
+            closeCalibrationModal();
+            alert(`Exercise "${name}" saved with ${capturedPoses.length} poses!`);
+        }
+
+        function deleteCurrentExercise() {
+            const loadSelect = document.getElementById('loadExerciseSelect');
+            const selectedId = loadSelect.value;
+
+            if (!selectedId) {
+                alert('No exercise selected to delete!');
+                return;
+            }
+
+            if (confirm(`Delete exercise "${exerciseConfigs[selectedId].name}"?`)) {
+                delete exerciseConfigs[selectedId];
+                saveConfigs();
+                closeCalibrationModal();
+            }
+        }
+
+        function loadExercisesList() {
+            const list = document.getElementById('exercisesList');
+
+            if (Object.keys(exerciseConfigs).length === 0) {
+                list.innerHTML = '<div class="empty-state"><p>No custom exercises yet.<br>Click "Create/Edit Exercise" to start!</p></div>';
+                return;
+            }
+
+            list.innerHTML = Object.entries(exerciseConfigs).map(([id, config]) => `
+                <div class="exercise-item">
+                    <div class="exercise-name">${config.name}</div>
+                    <div class="exercise-meta">${config.poses.length} poses · ${config.trackingParts}</div>
+                    <div class="exercise-actions">
+                        <button class="btn-small btn-primary" onclick="selectExercise('${id}')">Use</button>
+                        <button class="btn-small btn-success" onclick="editExercise('${id}')">Edit</button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function selectExercise(id) {
+            exerciseSelect.value = id;
+            exerciseType = id;
+            repCount = 0;
+            currentPoseIndex = 0;
+            repCountDiv.textContent = '0';
+            currentStateDiv.textContent = '-';
+        }
+
+        function editExercise(id) {
+            const config = exerciseConfigs[id];
+            currentEditingExercise = id;
+            capturedPoses = [...config.poses];
+
+            document.getElementById('exerciseName').value = config.name;
+            document.getElementById('loadExerciseSelect').value = id;
+            document.getElementById('trackingParts').value = config.trackingParts;
+
+            openCalibrationModal();
+            updateCapturedPosesList();
+        }
+
+        document.getElementById('loadExerciseSelect').addEventListener('change', (e) => {
+            if (e.target.value) {
+                editExercise(e.target.value);
+            }
+        });
+
+        startBtn.addEventListener('click', () => {
+            if (webcamStream) {
+                stopWebcam();
+            } else {
+                startWebcam();
+            }
+        });
+
+        resetBtn.addEventListener('click', () => {
+            repCount = 0;
+            currentPoseIndex = 0;
+            repCountDiv.textContent = '0';
+            currentStateDiv.textContent = '-';
+        });
+
+        calibrateBtn.addEventListener('click', openCalibrationModal);
+
+        exerciseSelect.addEventListener('change', (e) => {
+            exerciseType = e.target.value;
+            repCount = 0;
+            currentPoseIndex = 0;
+            repCountDiv.textContent = '0';
+            currentStateDiv.textContent = '-';
+        });
+
+        init();
+    </script>
+</body>
+</html>
