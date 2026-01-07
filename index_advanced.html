@@ -534,6 +534,11 @@
         let exerciseConfigs = {};
         let capturedPoses = [];
         let currentEditingExercise = null;
+        let lastPoseDetectionTime = 0;
+        let poseHoldTime = 0;
+        let isInPose = false;
+        const POSE_HOLD_THRESHOLD = 500; // Must hold pose for 500ms
+        const POSE_COOLDOWN = 300; // 300ms cooldown between poses
 
         const video = document.getElementById('webcam');
         const canvas = document.getElementById('canvas');
@@ -689,20 +694,49 @@
             if (kp1.confidence < minConfidence || kp2.confidence < minConfidence) return;
 
             const currentAngle = calculateAngle(kp1, kp2, kp3);
-
             const targetPose = config.poses[currentPoseIndex];
             const angleDiff = Math.abs(currentAngle - targetPose.angle);
             const threshold = 15;
+            const now = Date.now();
 
+            // Check if we're currently in the target pose
             if (angleDiff < threshold) {
-                currentStateDiv.textContent = targetPose.name;
-
-                if (currentPoseIndex === config.poses.length - 1) {
-                    repCount++;
-                    repCountDiv.textContent = repCount;
-                    currentPoseIndex = 0;
+                if (!isInPose) {
+                    // Just entered the pose
+                    isInPose = true;
+                    poseHoldTime = now;
+                    currentStateDiv.textContent = targetPose.name + ' ⏳';
                 } else {
-                    currentPoseIndex++;
+                    // Holding the pose - check if held long enough
+                    const holdDuration = now - poseHoldTime;
+
+                    if (holdDuration >= POSE_HOLD_THRESHOLD) {
+                        // Check cooldown to prevent double counting
+                        if (now - lastPoseDetectionTime > POSE_COOLDOWN) {
+                            currentStateDiv.textContent = targetPose.name + ' ✓';
+                            lastPoseDetectionTime = now;
+
+                            // Move to next pose
+                            if (currentPoseIndex === config.poses.length - 1) {
+                                // Completed full rep
+                                repCount++;
+                                repCountDiv.textContent = repCount;
+                                currentPoseIndex = 0;
+                            } else {
+                                currentPoseIndex++;
+                            }
+
+                            // Reset for next pose
+                            isInPose = false;
+                        }
+                    }
+                }
+            } else {
+                // Not in target pose anymore
+                if (isInPose) {
+                    // Left the pose before holding long enough
+                    isInPose = false;
+                    currentStateDiv.textContent = '-';
                 }
             }
         }
@@ -984,6 +1018,8 @@
             currentPoseIndex = 0;
             repCountDiv.textContent = '0';
             currentStateDiv.textContent = '-';
+            isInPose = false;
+            lastPoseDetectionTime = 0;
         }
 
         function editExercise(id) {
@@ -1018,6 +1054,8 @@
             currentPoseIndex = 0;
             repCountDiv.textContent = '0';
             currentStateDiv.textContent = '-';
+            isInPose = false;
+            lastPoseDetectionTime = 0;
         });
 
         calibrateBtn.addEventListener('click', openCalibrationModal);
@@ -1028,6 +1066,8 @@
             currentPoseIndex = 0;
             repCountDiv.textContent = '0';
             currentStateDiv.textContent = '-';
+            isInPose = false;
+            lastPoseDetectionTime = 0;
         });
 
         init();
